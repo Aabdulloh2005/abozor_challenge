@@ -45,13 +45,12 @@ lib/
   core/                # umumiy widget va utilitalar (narx formati, invite, bottom nav)
   features/
     home/              # bosh sahifa va uning bloklari
-    challenge/         # Abozor Challenge: 8 mashina, savol, natija (ChallengeBloc)
+    challenge/         # Abozor Challenge: 8 mashina, savol, to'g'ri javob ekrani
     ai_valuation/      # AI narxlash chat (AiChatBloc + ValuationRepository)
-    lottery/           # kuponlar (CouponCubit) va /lotareya sahifasi
     profile/           # profil sahifasi
 ```
 
-State management: `flutter_bloc` (ChallengeBloc, AiChatBloc, CouponCubit).
+State management: `flutter_bloc` (ChallengeBloc, AiChatBloc).
 
 ## 4. Sayt bilan mosligi
 
@@ -63,10 +62,18 @@ State management: `flutter_bloc` (ChallengeBloc, AiChatBloc, CouponCubit).
 | 8 ta mashina + narx variantlari | `ChallengeData.cars` (bir-bir ko'chirilgan) |
 | 3 ta sovrin karuseli | `ChallengeData.prizes` |
 | AI savollari ketma-ketligi | `kAiQuestions` |
-| `localStorage['abozor.coupons']` | `SharedPreferences` — xuddi shu kalit |
 | Bottom nav'dagi 3 ta bo'lim bosh sahifaga olib boradi | `MainShell._onTap` |
 
 ## 5. Saytdan farqi (ataylab)
+
+- **Lotareya / kupon g'oyasi olib tashlangan** — profil kartasi, `/lotareya` sahifasi,
+  header'dagi kupon hisoblagichi va kupon saqlash logikasi yo'q.
+- **To'g'ri javob alohida ekran** (`ChallengeSuccessPage`) — pop-up emas: konfetti,
+  belgi sakrab chiqishi va matn/tugmalarning ketma-ket paydo bo'lishi bilan ochiladi.
+- **AI chati** — ketma-ket kelgan bot xabarlari birin-ketin yoziladi (bir vaqtda emas);
+  matn harfma-harf chiqadi (`TypingText`).
+- **"Bilmayapsizmi?"** bosilganda mashina kartasi kichrayib tepada pin bo'ladi,
+  chat qolgan balandlikni egallaydi.
 
 - **AI baholash** — saytda server funksiyasi (LLM). Bu yerda `MockValuationRepository`
   (offline, deterministik). Real API uchun `ValuationRepository` ni implement qiling
@@ -77,7 +84,6 @@ State management: `flutter_bloc` (ChallengeBloc, AiChatBloc, CouponCubit).
 
 ## 6. Prototipdagi ochiq savollar (backend kerak)
 
-- Kuponlar hozir lokal — akkauntga bog'lanmagan, firibgarlikdan himoya yo'q.
 - Bitta mashinani cheksiz qayta yechish mumkin (limit qo'yilmagan).
-- Referal "do'st akkauntini faollashtirdi" hodisasi yo'q.
+- Referal "do'st akkauntini faollashtirdi" hodisasi yo'q — havola faqat nusxalanadi.
 - Banner "1000 so'm" deydi, challenge ichida "Tekinga" — matnlar bir xil bo'lishi kerak.

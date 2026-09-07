@@ -68,28 +68,45 @@ class _AiChatPanelState extends State<AiChatPanel> {
     return BlocConsumer<AiChatBloc, AiChatState>(
       listener: (context, state) => _scrollToBottom(),
       builder: (context, state) {
+        // Ketma-ket bot xabarlari BIRIN-KETIN yoziladi: hali yozilmagan
+        // birinchi bot xabari navbatda, undan keyingilari u tugamaguncha
+        // umuman ko'rsatilmaydi.
+        int? pendingBotIndex;
+        for (var i = 0; i < state.messages.length; i++) {
+          final message = state.messages[i];
+          if (message.role == ChatRole.bot &&
+              !_typedMessages.contains(_messageKey(i, message))) {
+            pendingBotIndex = i;
+            break;
+          }
+        }
+        final visibleCount =
+            pendingBotIndex == null ? state.messages.length : pendingBotIndex + 1;
+
         final messages = ListView.separated(
           controller: _scrollController,
           shrinkWrap: !widget.expand,
           padding: EdgeInsets.zero,
-          itemCount: state.messages.length + (state.isTyping ? 1 : 0),
+          itemCount: visibleCount + (state.isTyping ? 1 : 0),
           separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
           itemBuilder: (context, index) {
-            if (index >= state.messages.length) {
+            if (index >= visibleCount) {
               // AI hisoblayotgan payt: "Baholanmoqda" + jonli nuqtalar.
               return const _ThinkingBubble();
             }
             final message = state.messages[index];
             final key = _messageKey(index, message);
-            final animate =
-                message.role == ChatRole.bot && !_typedMessages.contains(key);
             return _Bubble(
               key: ValueKey(key),
               role: message.role,
               text: message.text,
-              animate: animate,
+              animate: index == pendingBotIndex,
               onProgress: _scrollToBottom,
-              onCompleted: () => _typedMessages.add(key),
+              onCompleted: () {
+                if (!mounted) return;
+                // setState — navbatdagi xabar endi ko'rinadi va yozila boshlaydi.
+                setState(() => _typedMessages.add(key));
+              },
             );
           },
         );
@@ -163,9 +180,17 @@ class _AiChatPanelState extends State<AiChatPanel> {
                 ),
               const SizedBox(height: AppSpacing.sm),
               if (state.finished && widget.finishedActionLabel != null)
-                FilledButton(
-                  onPressed: widget.onFinishedAction,
-                  child: Text(widget.finishedActionLabel!),
+                // Tugma AI oxirgi xabarni yozib bo'lgach paydo bo'ladi.
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 250),
+                  opacity: pendingBotIndex == null ? 1 : 0,
+                  child: IgnorePointer(
+                    ignoring: pendingBotIndex != null,
+                    child: FilledButton(
+                      onPressed: widget.onFinishedAction,
+                      child: Text(widget.finishedActionLabel!),
+                    ),
+                  ),
                 )
               else
                 _InputRow(

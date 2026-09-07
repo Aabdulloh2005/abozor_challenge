@@ -5,13 +5,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../../core/utils/invite.dart';
 import '../../../ai_valuation/presentation/widgets/ai_chat_panel.dart';
-import '../../../lottery/presentation/cubit/coupon_cubit.dart';
 import '../bloc/challenge_bloc.dart';
 import '../widgets/car_list_view.dart';
 import '../widgets/question_view.dart';
-import '../widgets/success_view.dart';
+import 'challenge_success_page.dart';
 
 /// Saytdagi "Abozor Challenge" bottom sheet'i.
 class ChallengeSheet extends StatefulWidget {
@@ -73,8 +71,16 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
             }
           } else if (state.answerStatus == ChallengeAnswerStatus.correct) {
             context.read<ChallengeBloc>().add(const ChallengeAnswerStatusHandled());
-            // Kupon qo'shiladi (saytdagidek to'g'ri javob = +1 kupon).
-            context.read<CouponCubit>().increment();
+            // To'g'ri javob alohida ekranda ochiladi: sheet yopiladi va
+            // tantanali sahifa push qilinadi.
+            final navigator = Navigator.of(context);
+            navigator.pop();
+            navigator.push(
+              ChallengeSuccessPage.route(
+                onValuateOwnCar: widget.onOpenAiAssistant,
+                onOpenProfile: widget.onOpenProfile,
+              ),
+            );
           }
         },
         builder: (context, state) {
@@ -142,18 +148,6 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
             ChallengeStep.question => ChallengeQuestionView(
                 key: _questionViewKey,
                 state: state,
-              ),
-            ChallengeStep.success => ChallengeSuccessView(
-                onBack: () => bloc.add(const ChallengeBackPressed()),
-                onInviteFriend: () => InviteHelper.invite(context),
-                onValuateOwnCar: () {
-                  Navigator.of(context).pop();
-                  widget.onOpenAiAssistant?.call();
-                },
-                onOpenProfile: () {
-                  Navigator.of(context).pop();
-                  widget.onOpenProfile?.call();
-                },
               ),
           };
 

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
-import '../../../lottery/presentation/cubit/coupon_cubit.dart';
-import '../../../lottery/presentation/pages/lottery_page.dart';
 import '../widgets/garage_banner.dart';
 
 /// Saytdagi /profil sahifasi.
@@ -95,10 +92,6 @@ class ProfileView extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           const GarageBanner(),
           const SizedBox(height: AppSpacing.md),
-          _LotteryCard(
-            onTap: () => Navigator.of(context).push(LotteryPage.route()),
-          ),
-          const SizedBox(height: AppSpacing.md),
           Container(
             decoration: BoxDecoration(
               color: AppColors.card,
@@ -147,75 +140,6 @@ class ProfileView extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LotteryCard extends StatelessWidget {
-  const _LotteryCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-        ),
-        child: Row(
-          children: [
-            Container(
-              height: 40,
-              width: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: const Icon(
-                Icons.confirmation_number_outlined,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Lotareya 🎉',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                    ),
-                  ),
-                  BlocBuilder<CouponCubit, int>(
-                    builder: (context, coupons) => Text(
-                      'Kuponlar soni: $coupons ta',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ],
-        ),
       ),
     );
   }

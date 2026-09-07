@@ -4,7 +4,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/utils/price_formatter.dart';
 import '../../domain/entities/challenge_car.dart';
 
-enum ChallengeStep { carList, question, success }
+/// To'g'ri javob endi alohida ekranda ochiladi — shuning uchun bu yerda
+/// faqat ikkita qadam bor.
+enum ChallengeStep { carList, question }
 
 enum ChallengeAnswerStatus { idle, wrong, correct }
 
@@ -121,11 +123,7 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
 
     on<ChallengeBackPressed>((event, emit) {
       if (state.step == ChallengeStep.question) {
-        emit(
-          const ChallengeState(),
-        );
-      } else if (state.step == ChallengeStep.success) {
-        emit(state.copyWith(step: ChallengeStep.question));
+        emit(const ChallengeState());
       }
     });
 
@@ -143,7 +141,6 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
           answerStatus: correct
               ? ChallengeAnswerStatus.correct
               : ChallengeAnswerStatus.wrong,
-          step: correct ? ChallengeStep.success : state.step,
         ),
       );
     });
