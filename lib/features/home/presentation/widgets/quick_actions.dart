@@ -59,7 +59,7 @@ class QuickActions extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(item.icon, size: 20, color: item.color),
+              Icon(item.icon, size: 40, color: item.color),
               const Spacer(),
               Text(
                 item.title,

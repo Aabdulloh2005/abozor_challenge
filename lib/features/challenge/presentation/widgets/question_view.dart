@@ -8,9 +8,17 @@ import '../../../../core/widgets/asset_image_box.dart';
 import '../../../ai_valuation/domain/repositories/valuation_repository.dart';
 import '../../../ai_valuation/presentation/bloc/ai_chat_bloc.dart';
 import '../../../ai_valuation/presentation/widgets/ai_chat_panel.dart';
+import '../../domain/entities/challenge_car.dart';
 import '../bloc/challenge_bloc.dart';
 
+/// Animatsiya davomiyligi — mashina kartasi kichrayib pin bo'lishi.
+const _kMorphDuration = Duration(milliseconds: 420);
+const _kMorphCurve = Curves.easeInOutCubic;
+
 /// 2-qadam: mashina kartochkasi, UZS/USD, 3 ta narx varianti va AI paneli.
+///
+/// AI ochilganda (Bilmayapsizmi / Javobni bilish) mashina kartasi kichrayib
+/// tepada pin bo'lib qoladi — user ma'lumotlarni eslab qolishi shart emas.
 class ChallengeQuestionView extends StatelessWidget {
   const ChallengeQuestionView({super.key, required this.state});
 
@@ -21,14 +29,20 @@ class ChallengeQuestionView extends StatelessWidget {
     final car = state.car;
     if (car == null) return const SizedBox.shrink();
     final bloc = context.read<ChallengeBloc>();
+    final aiMode = state.aiPanelOpen;
 
     return Column(
+      mainAxisSize: aiMode ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             InkWell(
-              onTap: () => bloc.add(const ChallengeBackPressed()),
+              onTap: () => bloc.add(
+                aiMode
+                    ? const ChallengeAiPanelToggled(open: false)
+                    : const ChallengeBackPressed(),
+              ),
               borderRadius: BorderRadius.circular(AppRadius.pill),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -37,83 +51,273 @@ class ChallengeQuestionView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                   border: Border.all(color: AppColors.border),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.arrow_back_rounded, size: 14),
-                    SizedBox(width: 6),
+                    const Icon(Icons.arrow_back_rounded, size: 14),
+                    const SizedBox(width: 6),
                     Text(
-                      'Orqaga',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      aiMode ? 'Savolga qaytish' : 'Orqaga',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
             const Spacer(),
-            _CurrencyToggle(
-              currency: state.currency,
-              onChanged: (value) => bloc.add(ChallengeCurrencyToggled(value)),
+            AnimatedOpacity(
+              duration: _kMorphDuration,
+              opacity: aiMode ? 0 : 1,
+              child: IgnorePointer(
+                ignoring: aiMode,
+                child: _CurrencyToggle(
+                  currency: state.currency,
+                  onChanged: (value) => bloc.add(ChallengeCurrencyToggled(value)),
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            borderRadius: BorderRadius.circular(AppRadius.xl),
-            border: Border.all(color: AppColors.border),
+
+        // Katta kartochka <-> pin qilingan kichik kartochka.
+        AnimatedCrossFade(
+          duration: _kMorphDuration,
+          sizeCurve: _kMorphCurve,
+          firstCurve: _kMorphCurve,
+          secondCurve: _kMorphCurve,
+          alignment: Alignment.topCenter,
+          crossFadeState:
+              aiMode ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          firstChild: _ExpandedCarCard(car: car),
+          secondChild: _PinnedCarCard(car: car),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // Narx variantlari — AI ochilganda yig'ilib ketadi.
+        AnimatedSize(
+          duration: _kMorphDuration,
+          curve: _kMorphCurve,
+          alignment: Alignment.topCenter,
+          child: aiMode
+              ? const SizedBox(width: double.infinity)
+              : _OptionsSection(state: state, car: car, bloc: bloc),
+        ),
+
+        if (aiMode)
+          Expanded(child: _AiPanel(car: car, bloc: bloc))
+        else
+          _HintCard(
+            onTap: () => bloc.add(const ChallengeAiPanelToggled(open: true)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AssetImageBox(asset: car.image, height: 170, width: double.infinity),
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      ],
+    );
+  }
+}
+
+/// AI chat paneli (pin rejimida qolgan joyni to'ldiradi).
+class _AiPanel extends StatelessWidget {
+  const _AiPanel({required this.car, required this.bloc});
+
+  final ChallengeCar car;
+  final ChallengeBloc bloc;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => AiChatBloc(context.read<ValuationRepository>())
+        ..add(
+          AiChatStarted(
+            intro:
+                "Bilmayapsizmi? Abozor AI bilan birga narxni topamiz. Savollarga javob bering.",
+            reveal: AiRevealTarget(
+              carName: car.name,
+              correctPrice: car.correctPrice,
+            ),
+          ),
+        ),
+      child: AiChatPanel(
+        expand: true,
+        onClose: () => bloc.add(const ChallengeAiPanelToggled(open: false)),
+        finishedActionLabel: 'Savolga qaytish',
+        onFinishedAction: () => bloc.add(const ChallengeAiPanelToggled(open: false)),
+      ),
+    );
+  }
+}
+
+/// Odatdagi (katta) mashina kartochkasi.
+class _ExpandedCarCard extends StatelessWidget {
+  const _ExpandedCarCard({required this.car});
+
+  final ChallengeCar car;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AssetImageBox(asset: car.image, height: 170, width: double.infinity),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  car.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
                   children: [
-                    Text(
-                      car.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
+                    Expanded(child: _SpecTile(label: 'YILI', value: '${car.year}')),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: _SpecTile(
+                        label: 'YURGAN',
+                        value: PriceFormatter.km(car.mileage),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      children: [
-                        Expanded(child: _SpecTile(label: 'YILI', value: '${car.year}')),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: _SpecTile(
-                            label: 'YURGAN',
-                            value: PriceFormatter.km(car.mileage),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        Expanded(child: _SpecTile(label: 'RANGI', value: car.color)),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: _SpecTile(
-                            label: 'UZATMA',
-                            value: car.transmission,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Expanded(child: _SpecTile(label: 'RANGI', value: car.color)),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: _SpecTile(label: 'UZATMA', value: car.transmission),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// AI chat davomida tepada turadigan kichik kartochka.
+class _PinnedCarCard extends StatelessWidget {
+  const _PinnedCarCard({required this.car});
+
+  final ChallengeCar car;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AssetImageBox(
+            asset: car.image,
+            height: 48,
+            width: 72,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  car.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 4,
+                  children: [
+                    _MiniChip(text: '${car.year}'),
+                    _MiniChip(text: PriceFormatter.km(car.mileage)),
+                    _MiniChip(text: car.color),
+                    _MiniChip(text: car.transmission),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.push_pin_rounded,
+            size: 14,
+            color: AppColors.mutedForeground,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.secondary,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.secondaryForeground,
         ),
-        const SizedBox(height: AppSpacing.lg),
+      ),
+    );
+  }
+}
+
+/// "Bozor narxi qancha?" + 3 ta variant.
+class _OptionsSection extends StatelessWidget {
+  const _OptionsSection({
+    required this.state,
+    required this.car,
+    required this.bloc,
+  });
+
+  final ChallengeState state;
+  final ChallengeCar car;
+  final ChallengeBloc bloc;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const Text(
           'Bozor narxi qancha?',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
@@ -128,28 +332,6 @@ class ChallengeQuestionView extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
         ],
         const SizedBox(height: AppSpacing.sm),
-        if (!state.aiPanelOpen)
-          _HintCard(onTap: () => bloc.add(const ChallengeAiPanelToggled(open: true)))
-        else
-          BlocProvider(
-            create: (context) => AiChatBloc(context.read<ValuationRepository>())
-              ..add(
-                AiChatStarted(
-                  intro:
-                      "Bilmayapsizmi? Abozor AI bilan birga narxni topamiz. Savollarga javob bering.",
-                  reveal: AiRevealTarget(
-                    carName: car.name,
-                    correctPrice: car.correctPrice,
-                  ),
-                ),
-              ),
-            child: AiChatPanel(
-              onClose: () => bloc.add(const ChallengeAiPanelToggled(open: false)),
-              finishedActionLabel: 'Savolga qaytish',
-              onFinishedAction: () =>
-                  bloc.add(const ChallengeAiPanelToggled(open: false)),
-            ),
-          ),
       ],
     );
   }

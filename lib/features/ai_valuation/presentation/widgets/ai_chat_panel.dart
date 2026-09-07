@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -14,12 +17,16 @@ class AiChatPanel extends StatefulWidget {
     this.finishedActionLabel,
     this.onFinishedAction,
     this.showHeader = true,
+    this.expand = false,
   });
 
   final VoidCallback? onClose;
   final String? finishedActionLabel;
   final VoidCallback? onFinishedAction;
   final bool showHeader;
+
+  /// true bo'lsa chat mavjud balandlikni to'ldiradi (pin qilingan rejim).
+  final bool expand;
 
   @override
   State<AiChatPanel> createState() => _AiChatPanelState();
@@ -28,6 +35,9 @@ class AiChatPanel extends StatefulWidget {
 class _AiChatPanelState extends State<AiChatPanel> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+
+  /// Yozib bo'lingan (animatsiyasi tugagan) bot xabarlari — qayta yozilmasin.
+  final _typedMessages = <String>{};
 
   @override
   void dispose() {
@@ -46,19 +56,44 @@ class _AiChatPanelState extends State<AiChatPanel> {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
   }
+
+  String _messageKey(int index, ChatMessage message) =>
+      '$index:${message.role.name}:${message.text.hashCode}';
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AiChatBloc, AiChatState>(
       listener: (context, state) => _scrollToBottom(),
       builder: (context, state) {
+        final messages = ListView.separated(
+          controller: _scrollController,
+          shrinkWrap: !widget.expand,
+          padding: EdgeInsets.zero,
+          itemCount: state.messages.length + (state.isTyping ? 1 : 0),
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+          itemBuilder: (context, index) {
+            if (index >= state.messages.length) {
+              // AI hisoblayotgan payt: "Baholanmoqda" + jonli nuqtalar.
+              return const _ThinkingBubble();
+            }
+            final message = state.messages[index];
+            final key = _messageKey(index, message);
+            final animate =
+                message.role == ChatRole.bot && !_typedMessages.contains(key);
+            return _Bubble(
+              key: ValueKey(key),
+              role: message.role,
+              text: message.text,
+              animate: animate,
+              onProgress: _scrollToBottom,
+              onCompleted: () => _typedMessages.add(key),
+            );
+          },
+        );
+
         return Container(
           decoration: BoxDecoration(
             color: AppColors.card,
@@ -67,7 +102,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
           ),
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (widget.showHeader) ...[
@@ -119,26 +154,13 @@ class _AiChatPanelState extends State<AiChatPanel> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: ListView.separated(
-                  controller: _scrollController,
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: state.messages.length + (state.isTyping ? 1 : 0),
-                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
-                  itemBuilder: (context, index) {
-                    if (index >= state.messages.length) {
-                      return const _Bubble(
-                        role: ChatRole.bot,
-                        text: 'Baholanmoqda...',
-                      );
-                    }
-                    final message = state.messages[index];
-                    return _Bubble(role: message.role, text: message.text);
-                  },
+              if (widget.expand)
+                Expanded(child: messages)
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: messages,
                 ),
-              ),
               const SizedBox(height: AppSpacing.sm),
               if (state.finished && widget.finishedActionLabel != null)
                 FilledButton(
@@ -160,14 +182,31 @@ class _AiChatPanelState extends State<AiChatPanel> {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.role, required this.text});
+  const _Bubble({
+    super.key,
+    required this.role,
+    required this.text,
+    this.animate = false,
+    this.onCompleted,
+    this.onProgress,
+  });
 
   final ChatRole role;
   final String text;
+  final bool animate;
+  final VoidCallback? onCompleted;
+  final VoidCallback? onProgress;
 
   @override
   Widget build(BuildContext context) {
     final isUser = role == ChatRole.user;
+    final style = TextStyle(
+      fontSize: 12.5,
+      height: 1.4,
+      fontWeight: isUser ? FontWeight.w700 : FontWeight.w500,
+      color: isUser ? Colors.white : AppColors.foreground,
+    );
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -177,14 +216,174 @@ class _Bubble extends StatelessWidget {
           color: isUser ? AppColors.primary : AppColors.secondary,
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 12.5,
-            height: 1.4,
-            fontWeight: isUser ? FontWeight.w700 : FontWeight.w500,
-            color: isUser ? Colors.white : AppColors.foreground,
-          ),
+        child: animate
+            ? TypingText(
+                text: text,
+                style: style,
+                onCompleted: onCompleted,
+                onProgress: onProgress,
+              )
+            : Text(text, style: style),
+      ),
+    );
+  }
+}
+
+/// Matnni harfma-harf yozadi — AI yozayotgandek ko'rinadi.
+class TypingText extends StatefulWidget {
+  const TypingText({
+    super.key,
+    required this.text,
+    required this.style,
+    this.onCompleted,
+    this.onProgress,
+    this.tick = const Duration(milliseconds: 16),
+  });
+
+  final String text;
+  final TextStyle style;
+  final VoidCallback? onCompleted;
+  final VoidCallback? onProgress;
+  final Duration tick;
+
+  @override
+  State<TypingText> createState() => _TypingTextState();
+}
+
+class _TypingTextState extends State<TypingText> {
+  Timer? _timer;
+  int _visible = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void didUpdateWidget(covariant TypingText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _visible = 0;
+      _start();
+    }
+  }
+
+  void _start() {
+    _timer?.cancel();
+    // Uzun matn tezroq yozilsin (bir tikda bir nechta belgi).
+    final step = math.max(1, widget.text.length ~/ 110);
+    _timer = Timer.periodic(widget.tick, (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _visible = math.min(widget.text.length, _visible + step);
+      });
+      widget.onProgress?.call();
+      if (_visible >= widget.text.length) {
+        timer.cancel();
+        widget.onCompleted?.call();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final done = _visible >= widget.text.length;
+    return Text.rich(
+      TextSpan(
+        text: widget.text.substring(0, _visible),
+        children: [
+          if (!done)
+            TextSpan(
+              text: '▌',
+              style: widget.style.copyWith(color: AppColors.primary),
+            ),
+        ],
+      ),
+      style: widget.style,
+    );
+  }
+}
+
+/// "Baholanmoqda" + sakrab turgan uchta nuqta.
+class _ThinkingBubble extends StatefulWidget {
+  const _ThinkingBubble();
+
+  @override
+  State<_ThinkingBubble> createState() => _ThinkingBubbleState();
+}
+
+class _ThinkingBubbleState extends State<_ThinkingBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.secondary,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Baholanmoqda',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.foreground,
+              ),
+            ),
+            const SizedBox(width: 6),
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (index) {
+                    final t = (_controller.value * 3 - index).clamp(0.0, 1.0);
+                    final opacity = 0.25 + 0.75 * math.sin(t * math.pi).abs();
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                      child: Opacity(
+                        opacity: opacity,
+                        child: Container(
+                          height: 5,
+                          width: 5,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
