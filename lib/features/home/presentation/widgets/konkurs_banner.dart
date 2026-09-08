@@ -59,7 +59,7 @@ class _KonkursBannerState extends State<KonkursBanner> {
                 const Text(
                   'KONKURS',
                   style: TextStyle(
-                    color: AppColors.primary,
+                    color: Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
