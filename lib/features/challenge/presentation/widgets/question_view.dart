@@ -288,7 +288,7 @@ class _OptionsSection extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
         ),
         const SizedBox(height: AppSpacing.sm),
-        for (final option in car.options) ...[
+        for (final option in (state.options.isEmpty ? car.options : state.options)) ...[
           _PriceOption(
             label: PriceFormatter.format(option, state.currency),
             selected: state.selectedPrice == option,

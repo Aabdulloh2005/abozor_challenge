@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -18,6 +20,7 @@ class ChallengeState extends Equatable {
     this.prize,
     this.car,
     this.selectedPrice,
+    this.options = const [],
     this.currency = Currency.uzs,
     this.aiPanelOpen = false,
     this.aiForced = false,
@@ -28,6 +31,10 @@ class ChallengeState extends Equatable {
   final Prize? prize;
   final ChallengeCar? car;
   final int? selectedPrice;
+
+  /// Savol uchun aralashtirilgan narx variantlari — to'g'ri javob har safar
+  /// boshqa joyda turadi.
+  final List<int> options;
   final Currency currency;
   final bool aiPanelOpen;
 
@@ -41,6 +48,7 @@ class ChallengeState extends Equatable {
     Prize? prize,
     ChallengeCar? car,
     int? selectedPrice,
+    List<int>? options,
     bool clearCar = false,
     bool clearSelection = false,
     Currency? currency,
@@ -54,6 +62,7 @@ class ChallengeState extends Equatable {
       car: clearCar ? null : (car ?? this.car),
       selectedPrice:
           (clearSelection || clearCar) ? null : (selectedPrice ?? this.selectedPrice),
+      options: clearCar ? const [] : (options ?? this.options),
       currency: currency ?? this.currency,
       aiPanelOpen: aiPanelOpen ?? this.aiPanelOpen,
       aiForced: aiForced ?? this.aiForced,
@@ -67,6 +76,7 @@ class ChallengeState extends Equatable {
         prize,
         car,
         selectedPrice,
+        options,
         currency,
         aiPanelOpen,
         aiForced,
@@ -159,6 +169,7 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
         state.copyWith(
           step: ChallengeStep.question,
           car: event.car,
+          options: List<int>.of(event.car.options)..shuffle(Random()),
           clearSelection: true,
           aiPanelOpen: false,
           aiForced: false,
