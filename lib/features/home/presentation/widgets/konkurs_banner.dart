@@ -75,7 +75,7 @@ class _KonkursBannerState extends State<KonkursBanner> {
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 350),
                     child: Text(
-                      prize.bannerLabel,
+                      prize.title,
                       key: ValueKey(prize.id),
                       style: const TextStyle(
                         color: Colors.white,

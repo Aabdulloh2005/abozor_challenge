@@ -2,10 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/utils/invite.dart';
+import '../../../prizes/presentation/cubit/participation_cubit.dart';
+import '../../domain/entities/prize.dart';
 
 /// To'g'ri javobdan keyin ochiladigan ALOHIDA ekran (pop-up emas).
 /// Ochilishi tantanali: konfetti, "check" belgisining sakrab chiqishi va
@@ -13,14 +16,19 @@ import '../../../../core/utils/invite.dart';
 class ChallengeSuccessPage extends StatefulWidget {
   const ChallengeSuccessPage({
     super.key,
+    this.prize,
     this.onValuateOwnCar,
     this.onOpenProfile,
   });
 
+  /// Foydalanuvchi tanlagan sovrin. Oliy sovrin bo'lsa — ishtirokni tasdiqlash
+  /// uchun havolani ulashish SHU ekranda so'raladi (boshida emas).
+  final Prize? prize;
   final VoidCallback? onValuateOwnCar;
   final VoidCallback? onOpenProfile;
 
   static Route<void> route({
+    Prize? prize,
     VoidCallback? onValuateOwnCar,
     VoidCallback? onOpenProfile,
   }) {
@@ -29,6 +37,7 @@ class ChallengeSuccessPage extends StatefulWidget {
       reverseTransitionDuration: const Duration(milliseconds: 260),
       pageBuilder: (context, animation, secondaryAnimation) =>
           ChallengeSuccessPage(
+        prize: prize,
         onValuateOwnCar: onValuateOwnCar,
         onOpenProfile: onOpenProfile,
       ),
@@ -61,17 +70,106 @@ class _ChallengeSuccessPageState extends State<ChallengeSuccessPage>
 
   late final List<_ConfettiPiece> _pieces = _ConfettiPiece.generate(46);
 
+  /// Oliy sovrin uchun havola ulashildimi.
+  bool _shared = false;
+
   @override
   void initState() {
     super.initState();
     HapticFeedback.mediumImpact();
     _controller.forward();
+    // To'g'ri javob = shu sovrinda ishtirok qozonildi.
+    final prize = widget.prize;
+    if (prize != null) context.read<ParticipationCubit>().join(prize.id);
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Oddiy sovrin: ulashish ixtiyoriy.
+  Widget _plainShareButton() {
+    return FilledButton.icon(
+      onPressed: () {
+        InviteHelper.invite(context);
+        context.read<ParticipationCubit>().registerShare();
+      },
+      icon: const Icon(Icons.share_outlined, size: 18),
+      label: const Text("Do'stni taklif qilish"),
+    );
+  }
+
+  /// Oliy bosh sovrin: ishtirokni tasdiqlash uchun havolani ulashish shart.
+  Widget _grandShareBlock() {
+    if (_shared) {
+      return Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.successSoft,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, size: 20, color: AppColors.success),
+            SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Ishtirokingiz tasdiqlandi — havola nusxalandi',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.success,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Oliy bosh sovrin uchun oxirgi qadam',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Ishtirokingiz hisobga olinishi uchun taklif havolangizni do'stingizga "
+            'ulashing.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: AppColors.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          FilledButton.icon(
+            onPressed: () {
+              InviteHelper.invite(context);
+              context.read<ParticipationCubit>().registerShare();
+              setState(() => _shared = true);
+            },
+            icon: const Icon(Icons.share_outlined, size: 18),
+            label: const Text('Ulashib, ishtirokni tasdiqlash'),
+          ),
+        ],
+      ),
+    );
   }
 
   Animation<double> _step(double begin, double end, {Curve curve = Curves.easeOutCubic}) {
@@ -86,6 +184,8 @@ class _ChallengeSuccessPageState extends State<ChallengeSuccessPage>
     final check = _step(0, 0.30, curve: Curves.elasticOut);
     final title = _step(0.18, 0.42);
     final subtitle = _step(0.26, 0.50);
+    final prize = widget.prize;
+    final isGrand = prize?.isGrand ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -161,10 +261,13 @@ class _ChallengeSuccessPageState extends State<ChallengeSuccessPage>
                         const SizedBox(height: AppSpacing.sm),
                         _Reveal(
                           animation: subtitle,
-                          child: const Text(
-                            'Tabriklaymiz — bozor narxini aniq topdingiz.',
+                          child: Text(
+                            prize == null
+                                ? 'Tabriklaymiz — bozor narxini aniq topdingiz.'
+                                : 'Tabriklaymiz — ${prize.title} uchun o\'yinda '
+                                    'ishtirok etyapsiz.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13.5,
                               height: 1.45,
                               color: AppColors.mutedForeground,
@@ -174,11 +277,7 @@ class _ChallengeSuccessPageState extends State<ChallengeSuccessPage>
                         const SizedBox(height: AppSpacing.xl),
                         _Reveal(
                           animation: _step(0.36, 0.58),
-                          child: FilledButton.icon(
-                            onPressed: () => InviteHelper.invite(context),
-                            icon: const Icon(Icons.share_outlined, size: 18),
-                            label: const Text("Do'stni taklif qilish"),
-                          ),
+                          child: isGrand ? _grandShareBlock() : _plainShareButton(),
                         ),
                         const SizedBox(height: AppSpacing.xs),
                         _Reveal(

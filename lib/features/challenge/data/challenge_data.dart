@@ -95,27 +95,63 @@ abstract final class ChallengeData {
     ),
   ];
 
+  /// Konkurs sovrinlari: bitta oliy bosh sovrin + oddiy sovrinlar.
   static const prizes = <Prize>[
     Prize(
       id: 'iphone',
       title: 'iPhone 17 Pro Max',
-      subtitle: 'Tekinga — yutib oling! 🏆',
-      bannerLabel: "Iphone 17 - 1000 so'm",
+      subtitle: 'Oliy bosh sovrin',
+      description: "Bosh sovrin — konkurs yakunida bitta g'olibga",
       image: 'assets/images/prize-iphone.jpg',
-    ),
-    Prize(
-      id: 'airpods',
-      title: "Airpods pro - 1000 so'm",
-      subtitle: 'yutib oling! 🏆',
-      bannerLabel: "Airpods pro - 1000 so'm",
-      image: 'assets/images/prize-airpods.jpg',
+      isGrand: true,
     ),
     Prize(
       id: 'scooter',
-      title: "Skooter - 1000 so'm",
-      subtitle: 'yutib oling! 🏆',
-      bannerLabel: "Skooter - 1000 so'm",
+      title: 'Xiaomi Scooter',
+      subtitle: 'Yutib oling! 🏆',
+      description: "Elektr skuter",
       image: 'assets/images/prize-scooter.jpg',
     ),
+    Prize(
+      id: 'watch',
+      title: 'Apple Watch',
+      subtitle: 'Yutib oling! 🏆',
+      description: "Smart soat",
+      image: 'assets/images/prize-watch.jpg',
+    ),
+    Prize(
+      id: 'airpods',
+      title: 'AirPods',
+      subtitle: 'Yutib oling! 🏆',
+      description: "Simsiz quloqchinlar",
+      image: 'assets/images/prize-airpods.jpg',
+    ),
+    Prize(
+      id: 'tires',
+      title: 'Hankook shinalar',
+      subtitle: 'Yutib oling! 🏆',
+      description: "To'plam — 4 dona shina",
+      image: 'assets/images/prize-tires.jpg',
+    ),
+    Prize(
+      id: 'battery',
+      title: 'Akkumulyator',
+      subtitle: 'Yutib oling! 🏆',
+      description: "Avtomobil uchun yangi akkumulyator",
+      image: 'assets/images/prize-battery.jpg',
+    ),
+    Prize(
+      id: 'carwash',
+      title: 'Bepul avtomoyka',
+      subtitle: 'Yutib oling! 🏆',
+      description: "Abozor Garaj'da bepul yuvish",
+      image: 'assets/images/prize-carwash.jpg',
+    ),
   ];
+
+  /// Konkurs yakunlanadigan sana (countdown shu sanadan hisoblanadi).
+  static final DateTime drawDate = DateTime(2026, 10, 1);
+
+  /// Oliy bosh sovrin (bosh sahifadagi banner va promo uchun).
+  static Prize get grandPrize => prizes.firstWhere((prize) => prize.isGrand);
 }

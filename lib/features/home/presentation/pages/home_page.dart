@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
-import '../../../ai_valuation/presentation/pages/ai_assistant_sheet.dart';
+import '../../../ai_valuation/presentation/pages/ai_assistant_page.dart';
 import '../../../challenge/presentation/pages/challenge_sheet.dart';
 import '../widgets/ai_assistant_card.dart';
 import '../widgets/hero_banner.dart';
@@ -25,7 +25,7 @@ class HomeView extends StatelessWidget {
   }
 
   void _openAi(BuildContext context) {
-    AiAssistantSheet.show(
+    AiAssistantPage.open(
       context,
       onKonkursTap: () {
         Navigator.of(context).pop();

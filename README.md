@@ -60,7 +60,7 @@ State management: `flutter_bloc` (ChallengeBloc, AiChatBloc).
 | Manrope shrifti | `google_fonts` → `GoogleFonts.manropeTextTheme` |
 | `--radius: 1.25rem` | `AppRadius.lg = 20` |
 | 8 ta mashina + narx variantlari | `ChallengeData.cars` (bir-bir ko'chirilgan) |
-| 3 ta sovrin karuseli | `ChallengeData.prizes` |
+| Sovrinlar | `ChallengeData.prizes` (1 ta oliy + 6 ta oddiy) |
 | AI savollari ketma-ketligi | `kAiQuestions` |
 | Bottom nav'dagi 3 ta bo'lim bosh sahifaga olib boradi | `MainShell._onTap` |
 
@@ -74,6 +74,9 @@ State management: `flutter_bloc` (ChallengeBloc, AiChatBloc).
   matn harfma-harf chiqadi (`TypingText`).
 - **"Bilmayapsizmi?"** bosilganda mashina kartasi kichrayib tepada pin bo'ladi,
   chat qolgan balandlikni egallaydi.
+- **Konkurs oqimi**: avval sovrinlar ro'yxati (scroll), keyin mashina, keyin narx savoli.
+  Oliy bosh sovrin (iPhone 17 Pro Max) uchun qo'shimcha shart — taklif havolasini ulashish.
+  "1000 so'm" g'oyasi olib tashlangan.
 
 - **AI baholash** — saytda server funksiyasi (LLM). Bu yerda `MockValuationRepository`
   (offline, deterministik). Real API uchun `ValuationRepository` ni implement qiling
@@ -86,4 +89,4 @@ State management: `flutter_bloc` (ChallengeBloc, AiChatBloc).
 
 - Bitta mashinani cheksiz qayta yechish mumkin (limit qo'yilmagan).
 - Referal "do'st akkauntini faollashtirdi" hodisasi yo'q — havola faqat nusxalanadi.
-- Banner "1000 so'm" deydi, challenge ichida "Tekinga" — matnlar bir xil bo'lishi kerak.
+- Oliy sovrin sharti hozir faqat frontendda tekshiriladi (ulashish fakti backendda tasdiqlanishi kerak).

@@ -6,19 +6,25 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../ai_valuation/presentation/widgets/ai_chat_panel.dart';
+import '../../domain/entities/prize.dart';
 import '../bloc/challenge_bloc.dart';
 import '../widgets/car_list_view.dart';
+import '../widgets/prize_list_view.dart';
 import '../widgets/question_view.dart';
 import 'challenge_success_page.dart';
 
-/// Saytdagi "Abozor Challenge" bottom sheet'i.
+/// "Abozor konkurs" bottom sheet: sovrin → (shart) → mashina → narx savoli.
 class ChallengeSheet extends StatefulWidget {
   const ChallengeSheet({
     super.key,
+    this.initialPrize,
     this.onOpenAiAssistant,
     this.onOpenProfile,
   });
 
+  /// Sovrin oldindan tanlangan bo'lsa (masalan "Sovrinlarim" ekranidan kirilsa),
+  /// sovrinlar ro'yxati o'tkazib yuborilib to'g'ridan-to'g'ri mashina tanlanadi.
+  final Prize? initialPrize;
   final VoidCallback? onOpenAiAssistant;
   final VoidCallback? onOpenProfile;
 
@@ -27,6 +33,7 @@ class ChallengeSheet extends StatefulWidget {
 
   static Future<void> show(
     BuildContext context, {
+    Prize? initialPrize,
     VoidCallback? onOpenAiAssistant,
     VoidCallback? onOpenProfile,
   }) {
@@ -41,6 +48,7 @@ class ChallengeSheet extends StatefulWidget {
         maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
       builder: (_) => ChallengeSheet(
+        initialPrize: initialPrize,
         onOpenAiAssistant: onOpenAiAssistant,
         onOpenProfile: onOpenProfile,
       ),
@@ -53,21 +61,48 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
   /// uzilib qolmasligi uchun — subtree state'i saqlanadi.
   final GlobalKey _questionViewKey = GlobalKey(debugLabel: 'challenge-question');
 
+  /// Sheet ichidagi scroll: yangi qadam har doim tepadan boshlanishi uchun.
+  final ScrollController _scrollController = ScrollController();
+  ChallengeStep? _lastStep;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => ChallengeBloc(),
+      create: (_) {
+        final bloc = ChallengeBloc();
+        final prize = widget.initialPrize;
+        if (prize != null) bloc.add(ChallengePrizeSelected(prize));
+        return bloc;
+      },
       child: BlocConsumer<ChallengeBloc, ChallengeState>(
         listenWhen: (previous, current) =>
-            previous.answerStatus != current.answerStatus,
+            previous.answerStatus != current.answerStatus ||
+            previous.step != current.step,
         listener: (context, state) async {
+          // Qadam almashsa — yangi ro'yxat/ekran tepadan ochiladi.
+          if (_lastStep != state.step) {
+            _lastStep = state.step;
+            _scrollToTop();
+          }
           if (state.answerStatus == ChallengeAnswerStatus.wrong) {
             context.read<ChallengeBloc>().add(const ChallengeAnswerStatusHandled());
             final showAi = await _showWrongDialog(context);
             if (showAi == true && context.mounted) {
-              context
-                  .read<ChallengeBloc>()
-                  .add(const ChallengeAiPanelToggled(open: true));
+              context.read<ChallengeBloc>().add(
+                    const ChallengeAiPanelToggled(open: true, forced: true),
+                  );
             }
           } else if (state.answerStatus == ChallengeAnswerStatus.correct) {
             context.read<ChallengeBloc>().add(const ChallengeAnswerStatusHandled());
@@ -77,6 +112,7 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
             navigator.pop();
             navigator.push(
               ChallengeSuccessPage.route(
+                prize: state.prize,
                 onValuateOwnCar: widget.onOpenAiAssistant,
                 onOpenProfile: widget.onOpenProfile,
               ),
@@ -111,21 +147,26 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
               ),
               Row(
                 children: [
-                  _CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    onTap: () {
-                      if (state.step == ChallengeStep.carList) {
-                        Navigator.of(context).pop();
-                      } else if (state.aiPanelOpen) {
-                        bloc.add(const ChallengeAiPanelToggled(open: false));
-                      } else {
-                        bloc.add(const ChallengeBackPressed());
-                      }
-                    },
-                  ),
+                  // "Javobni bilish" orqali kirilganda orqaga qaytish yo'li
+                  // ko'rsatilmaydi — user AI javobini olib, keyin qaytadi.
+                  if (state.aiPanelOpen && state.aiForced)
+                    const SizedBox(width: 34)
+                  else
+                    _CircleIconButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () {
+                        if (state.step == ChallengeStep.prizeList) {
+                          Navigator.of(context).pop();
+                        } else if (state.aiPanelOpen) {
+                          bloc.add(const ChallengeAiPanelToggled(open: false));
+                        } else {
+                          bloc.add(const ChallengeBackPressed());
+                        }
+                      },
+                    ),
                   const Expanded(
                     child: Text(
-                      'Abozor Challenge',
+                      'Abozor konkurs',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
@@ -144,7 +185,8 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
           );
 
           final content = switch (state.step) {
-            ChallengeStep.carList => const ChallengeCarListView(),
+            ChallengeStep.prizeList => const PrizeListView(),
+            ChallengeStep.carList => ChallengeCarListView(state: state),
             ChallengeStep.question => ChallengeQuestionView(
                 key: _questionViewKey,
                 state: state,
@@ -179,6 +221,7 @@ class _ChallengeSheetState extends State<ChallengeSheet> {
                       ),
                     )
                   : SingleChildScrollView(
+                      controller: _scrollController,
                       padding: contentPadding,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,

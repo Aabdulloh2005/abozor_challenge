@@ -3,52 +3,75 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/utils/price_formatter.dart';
 import '../../domain/entities/challenge_car.dart';
+import '../../domain/entities/prize.dart';
 
-/// To'g'ri javob endi alohida ekranda ochiladi — shuning uchun bu yerda
-/// faqat ikkita qadam bor.
-enum ChallengeStep { carList, question }
+/// Konkurs oqimi: sovrinni tanlash → mashinani tanlash → narx savoli.
+/// To'g'ri javob alohida ekranda ochiladi (oliy sovrin uchun ulashish sharti
+/// ham o'sha oxirgi ekranda so'raladi — boshida user bloklanmaydi).
+enum ChallengeStep { prizeList, carList, question }
 
 enum ChallengeAnswerStatus { idle, wrong, correct }
 
 class ChallengeState extends Equatable {
   const ChallengeState({
-    this.step = ChallengeStep.carList,
+    this.step = ChallengeStep.prizeList,
+    this.prize,
     this.car,
     this.selectedPrice,
     this.currency = Currency.uzs,
     this.aiPanelOpen = false,
+    this.aiForced = false,
     this.answerStatus = ChallengeAnswerStatus.idle,
   });
 
   final ChallengeStep step;
+  final Prize? prize;
   final ChallengeCar? car;
   final int? selectedPrice;
   final Currency currency;
   final bool aiPanelOpen;
+
+  /// AI paneli "Javobni bilish" (xato javob dialogi) orqali ochilganmi.
+  /// Bunda chiqish yo'llari minimallashtiriladi.
+  final bool aiForced;
   final ChallengeAnswerStatus answerStatus;
 
   ChallengeState copyWith({
     ChallengeStep? step,
+    Prize? prize,
     ChallengeCar? car,
     int? selectedPrice,
+    bool clearCar = false,
     bool clearSelection = false,
     Currency? currency,
     bool? aiPanelOpen,
+    bool? aiForced,
     ChallengeAnswerStatus? answerStatus,
   }) {
     return ChallengeState(
       step: step ?? this.step,
-      car: car ?? this.car,
-      selectedPrice: clearSelection ? null : (selectedPrice ?? this.selectedPrice),
+      prize: prize ?? this.prize,
+      car: clearCar ? null : (car ?? this.car),
+      selectedPrice:
+          (clearSelection || clearCar) ? null : (selectedPrice ?? this.selectedPrice),
       currency: currency ?? this.currency,
       aiPanelOpen: aiPanelOpen ?? this.aiPanelOpen,
+      aiForced: aiForced ?? this.aiForced,
       answerStatus: answerStatus ?? this.answerStatus,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [step, car, selectedPrice, currency, aiPanelOpen, answerStatus];
+  List<Object?> get props => [
+        step,
+        prize,
+        car,
+        selectedPrice,
+        currency,
+        aiPanelOpen,
+        aiForced,
+        answerStatus,
+      ];
 }
 
 sealed class ChallengeEvent extends Equatable {
@@ -56,6 +79,15 @@ sealed class ChallengeEvent extends Equatable {
 
   @override
   List<Object?> get props => const [];
+}
+
+class ChallengePrizeSelected extends ChallengeEvent {
+  const ChallengePrizeSelected(this.prize);
+
+  final Prize prize;
+
+  @override
+  List<Object?> get props => [prize];
 }
 
 class ChallengeCarSelected extends ChallengeEvent {
@@ -90,12 +122,15 @@ class ChallengeAnswerSelected extends ChallengeEvent {
 }
 
 class ChallengeAiPanelToggled extends ChallengeEvent {
-  const ChallengeAiPanelToggled({required this.open});
+  const ChallengeAiPanelToggled({required this.open, this.forced = false});
 
   final bool open;
 
+  /// true — xato javobdan keyingi "Javobni bilish" orqali ochilgan.
+  final bool forced;
+
   @override
-  List<Object?> get props => [open];
+  List<Object?> get props => [open, forced];
 }
 
 /// Xato javob dialogi ko'rsatilib bo'lgach statusni tozalash uchun.
@@ -109,6 +144,16 @@ class ChallengeReset extends ChallengeEvent {
 
 class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
   ChallengeBloc() : super(const ChallengeState()) {
+    on<ChallengePrizeSelected>(
+      (event, emit) => emit(
+        state.copyWith(
+          prize: event.prize,
+          step: ChallengeStep.carList,
+          clearCar: true,
+        ),
+      ),
+    );
+
     on<ChallengeCarSelected>(
       (event, emit) => emit(
         state.copyWith(
@@ -116,14 +161,27 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
           car: event.car,
           clearSelection: true,
           aiPanelOpen: false,
+          aiForced: false,
           answerStatus: ChallengeAnswerStatus.idle,
         ),
       ),
     );
 
     on<ChallengeBackPressed>((event, emit) {
-      if (state.step == ChallengeStep.question) {
-        emit(const ChallengeState());
+      switch (state.step) {
+        case ChallengeStep.question:
+          emit(
+            state.copyWith(
+              step: ChallengeStep.carList,
+              clearCar: true,
+              aiPanelOpen: false,
+              aiForced: false,
+            ),
+          );
+        case ChallengeStep.carList:
+          emit(state.copyWith(step: ChallengeStep.prizeList, clearCar: true));
+        case ChallengeStep.prizeList:
+          break;
       }
     });
 
@@ -134,11 +192,10 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
     on<ChallengeAnswerSelected>((event, emit) {
       final car = state.car;
       if (car == null) return;
-      final correct = car.isCorrect(event.price);
       emit(
         state.copyWith(
           selectedPrice: event.price,
-          answerStatus: correct
+          answerStatus: car.isCorrect(event.price)
               ? ChallengeAnswerStatus.correct
               : ChallengeAnswerStatus.wrong,
         ),
@@ -146,7 +203,12 @@ class ChallengeBloc extends Bloc<ChallengeEvent, ChallengeState> {
     });
 
     on<ChallengeAiPanelToggled>(
-      (event, emit) => emit(state.copyWith(aiPanelOpen: event.open)),
+      (event, emit) => emit(
+        state.copyWith(
+          aiPanelOpen: event.open,
+          aiForced: event.open ? event.forced : false,
+        ),
+      ),
     );
 
     on<ChallengeAnswerStatusHandled>(

@@ -35,53 +35,17 @@ class ChallengeQuestionView extends StatelessWidget {
       mainAxisSize: aiMode ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            InkWell(
-              onTap: () => bloc.add(
-                aiMode
-                    ? const ChallengeAiPanelToggled(open: false)
-                    : const ChallengeBackPressed(),
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.arrow_back_rounded, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      aiMode ? 'Savolga qaytish' : 'Orqaga',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+        // Orqaga qaytish faqat sheet header'idagi strelkada — takrorlanmaydi.
+        if (!aiMode) ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: _CurrencyToggle(
+              currency: state.currency,
+              onChanged: (value) => bloc.add(ChallengeCurrencyToggled(value)),
             ),
-            const Spacer(),
-            AnimatedOpacity(
-              duration: _kMorphDuration,
-              opacity: aiMode ? 0 : 1,
-              child: IgnorePointer(
-                ignoring: aiMode,
-                child: _CurrencyToggle(
-                  currency: state.currency,
-                  onChanged: (value) => bloc.add(ChallengeCurrencyToggled(value)),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
 
         // Katta kartochka <-> pin qilingan kichik kartochka.
         AnimatedCrossFade(
@@ -141,7 +105,8 @@ class _AiPanel extends StatelessWidget {
         ),
       child: AiChatPanel(
         expand: true,
-        onClose: () => bloc.add(const ChallengeAiPanelToggled(open: false)),
+        // Yopish tugmasi yo'q: chiqish yo'li bitta — chat oxiridagi
+        // "Savolga qaytish" (yoki header'dagi strelka, majburiy rejim bo'lmasa).
         finishedActionLabel: 'Savolga qaytish',
         onFinishedAction: () => bloc.add(const ChallengeAiPanelToggled(open: false)),
       ),

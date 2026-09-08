@@ -140,6 +140,21 @@ class AiChatBloc extends Bloc<AiChatEvent, AiChatState> {
     final answer = event.answer.trim();
     if (answer.isEmpty || !state.canType) return;
 
+    // Javobni tekshirish: AI istalgan matnni qabul qilmaydi.
+    final error = _validate(state.step, answer);
+    if (error != null) {
+      emit(
+        state.copyWith(
+          messages: [
+            ...state.messages,
+            ChatMessage(ChatRole.user, answer),
+            ChatMessage(ChatRole.bot, error),
+          ],
+        ),
+      );
+      return;
+    }
+
     final answers = [...state.answers, answer];
     final messages = [...state.messages, ChatMessage(ChatRole.user, answer)];
     final nextStep = state.step + 1;
@@ -202,6 +217,67 @@ class AiChatBloc extends Bloc<AiChatEvent, AiChatState> {
         ],
       ),
     );
+  }
+
+  /// Har bir savol uchun mantiqiy tekshiruv. null — javob qabul qilinadi.
+  String? _validate(int step, String answer) {
+    final lower = answer.toLowerCase();
+    final digits = answer.replaceAll(RegExp('[^0-9]'), '');
+    final letterCount = RegExp('[a-zA-Z]').allMatches(answer).length;
+
+    switch (step) {
+      case 0: // marka va model
+        if (letterCount < 3) {
+          return "Bu marka va modelga o'xshamadi. Matn bilan yozing — "
+              'masalan: Chevrolet Cobalt.';
+        }
+        return null;
+
+      case 1: // yil
+        final maxYear = DateTime.now().year + 1;
+        if (digits.length != 4) {
+          return "Yilni 4 xonali son bilan yozing — masalan: 2021.";
+        }
+        final year = int.parse(digits);
+        if (year < 1980 || year > maxYear) {
+          return "1980-$maxYear oralig'idagi yilni kiriting.";
+        }
+        return null;
+
+      case 2: // yurgan masofa
+        if (digits.isEmpty || letterCount > 4) {
+          return "Yurgan masofani km da son bilan yozing — masalan: 109000.";
+        }
+        final km = int.parse(digits);
+        if (km > 1500000) {
+          return 'Bu masofa haqiqatga to\'g\'ri kelmaydi. Km da qayta kiriting.';
+        }
+        return null;
+
+      case 3: // rang
+        if (letterCount < 2) {
+          return "Rangni so'z bilan yozing — masalan: oq, qora, kumush.";
+        }
+        return null;
+
+      case 4: // uzatma
+        const gearKeys = ['avtomat', 'automat', 'avto', 'mexanik', 'mechanik',
+            'variator', 'robot', 'dsg', 'cvt'];
+        final short = lower.trim();
+        if (!gearKeys.any(lower.contains) && short != 'at' && short != 'mt') {
+          return 'Uzatmani aniq yozing: "avtomat" yoki "mexanika".';
+        }
+        return null;
+
+      case 5: // holat
+        const conditionKeys = ['ideal', 'alo', "a'lo", 'yaxshi', 'ortacha',
+            "o'rtacha", 'urtacha', 'normal', 'boyalgan', "bo'yalgan", 'yomon'];
+        if (!conditionKeys.any(lower.contains)) {
+          return "Holatini so'z bilan yozing: ideal, o'rtacha yoki bo'yalgan.";
+        }
+        return null;
+    }
+    return null;
   }
 
   int _toInt(String raw, {required int fallback}) {
